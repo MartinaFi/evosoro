@@ -10,6 +10,10 @@ See <http://www.opensource.org/licenses/lgpl-3.0.html> for license details.
 
 #include "VX_SimGA.h"
 #include <iostream>
+#include <string>
+#include <sstream>
+
+using namespace std;
 
 CVX_SimGA::CVX_SimGA()
 {
@@ -66,6 +70,19 @@ void CVX_SimGA::WriteResultFile(CXML_Rip* pXML)
 //			pXML->Element("NormRegimeDist", normRegimeDist);
 		pXML->UpLevel();
 
+		pXML->DownLevel("VoxData");
+		string pressureData, spaceS = " ";
+
+		for(int i = 0; i < NumVox(); i++)
+		{
+			std::stringstream s;
+			s << VoxArray[i].GetPressure();
+			string press = s.str();
+			pressureData = pressureData + spaceS + press;
+			// pressureData = pressureData + " " + VoxArray[i].GetPressure();
+		}
+		pXML->Element("Pressure", pressureData);
+
 		if (pEnv->getTimeBetweenTraces() > 0)
 		{
 			pXML->DownLevel("CMTrace");
@@ -105,8 +122,8 @@ bool CVX_SimGA::ReadAdditionalSimXML(CXML_Rip* pXML, std::string* RetMessage)
 		if (pXML->FindLoadElement("FitnessType", &TmpInt)) FitnessType=(FitnessTypes)TmpInt; else Fitness = 0;
 		if (!pXML->FindLoadElement("TrackVoxel", &TrackVoxel)) TrackVoxel = 0;
 		if (!pXML->FindLoadElement("FitnessFileName", &FitnessFileName)) FitnessFileName = "";
-		if (!pXML->FindLoadElement("QhullTmpFile", &QhullTmpFile)) QhullTmpFile = "";		
-		if (!pXML->FindLoadElement("CurvaturesTmpFile", &CurvaturesTmpFile)) CurvaturesTmpFile = "";		
+		if (!pXML->FindLoadElement("QhullTmpFile", &QhullTmpFile)) QhullTmpFile = "";
+		if (!pXML->FindLoadElement("CurvaturesTmpFile", &CurvaturesTmpFile)) CurvaturesTmpFile = "";
 		if (!pXML->FindLoadElement("WriteFitnessFile", &WriteFitnessFile)) WriteFitnessFile = true;
 		pXML->UpLevel();
 	}

@@ -2,6 +2,7 @@ import hashlib
 import os
 import time
 import random
+import re
 
 
 def read_voxlyze_results(population, print_log, filename="softbotsOutput.xml"):
@@ -9,6 +10,7 @@ def read_voxlyze_results(population, print_log, filename="softbotsOutput.xml"):
     max_attempts = 60
     file_size = 0
     this_file = ""
+    re_float_array = re.compile("( [\-0-9.e+]+)")
 
     while (i < max_attempts) and (file_size == 0):
         try:
@@ -30,7 +32,16 @@ def read_voxlyze_results(population, print_log, filename="softbotsOutput.xml"):
         if tag is not None:
             for line in this_file:
                 if tag in line:
-                    results[rank] = abs(float(line[line.find(tag) + len(tag):line.find("</" + tag[1:])]))
+                    str = line[line.find(tag) + len(tag):line.find("</" + tag[1:])]
+                    if re_float_array.match(str) is None:
+                        results[rank] = abs(float(str))
+                    else:
+                        iter = re_float_array.finditer(str)
+                        elements = list()
+                        for el in iter:
+                            if el:
+                                elements.append(float(el.group(1)))
+                        results[rank] = elements
 
     return results
 

@@ -23,7 +23,7 @@ class Sim(VoxCadParams):
 
     def __init__(self, self_collisions_enabled=True, simulation_time=10, dt_frac=0.7, stop_condition=2,
                  fitness_eval_init_time=2, equilibrium_mode=0, min_temp_fact=0.1, max_temp_fact_change=0.00001,
-                 max_stiffness_change=10000, min_elastic_mod=5e006, max_elastic_mod=5e008):
+                 max_stiffness_change=10000, min_elastic_mod=5e006, max_elastic_mod=5e008, fixed_shape=none, scenarios=none):
 
         VoxCadParams.__init__(self)
 
@@ -41,6 +41,8 @@ class Sim(VoxCadParams):
         self.max_stiffness_change = max_stiffness_change
         self.min_elastic_mod = min_elastic_mod
         self.max_elastic_mod = max_elastic_mod
+        self.fixed_shape = fixed_shape
+        self.scenarios = scenarios;
 
 
 class Env(VoxCadParams):
@@ -98,7 +100,7 @@ class ObjectiveDict(dict):
     #     raise SyntaxError
     # TODO: want to restrict input but this prevents deep copying: maybe instead just make object with embedded dict
 
-    def add_objective(self, name, maximize, tag, node_func=None, output_node_name=None):
+    def add_objective(self, name, maximize, tag, node_func=None, output_node_name=None, mode='standard'):
         """Add an optimization objective to the dictionary.
 
         Objectives must be added in order of importance, however fitness is fixed to be the most important.
@@ -138,5 +140,6 @@ class ObjectiveDict(dict):
                                                            "tag": xml_format(tag) if tag is not None else None,
                                                            "worst_value": -10e6 if maximize else 10e6,
                                                            "node_func": node_func,
-                                                           "output_node_name": output_node_name})
+                                                           "output_node_name": output_node_name,
+                                                           "mode": mode}) # Possible values: standard, classification
         self.max_rank += 1

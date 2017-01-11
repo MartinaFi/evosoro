@@ -3,6 +3,7 @@ import os
 import time
 import random
 import re
+import numpy as np
 
 
 def read_voxlyze_results(population, print_log, filename="softbotsOutput.xml"):
@@ -46,8 +47,12 @@ def read_voxlyze_results(population, print_log, filename="softbotsOutput.xml"):
     return results
 
 
-def write_voxelyze_file(sim, env, individual, run_directory, run_name):
+def write_voxelyze_file(sim, env, individual, run_directory, run_name, scenario = None):
 
+    if scenario == None:
+        fileNameID = "--id_%05i" % individual.id
+    else:
+        fileNameID = "--id_%05i--scen_%05i" % individual.id, scenario.id
     # TODO: work in base.py to remove redundant static text in this function
 
     # update any env variables based on outputs instead of writing outputs in
@@ -57,7 +62,27 @@ def write_voxelyze_file(sim, env, individual, run_directory, run_name):
                 setattr(env, env_key, env_func(details["state"]))  # currently only used when evolving frequency
                 # print env_key, env_func(details["state"])
 
-    voxelyze_file = open(run_directory + "/voxelyzeFiles/" + run_name + "--id_%05i.vxa" % individual.id, "w")
+    voxelyze_file = open(run_directory + "/voxelyzeFiles/" + run_name + fileNameID + ".vxa" % individual.id, "w")
+
+    all_tags = [details["tag"] for name, details in individual.genotype.to_phenotype_mapping.items()]
+    data_in_tags =  "<Data>" in all_tags
+    data_shape = np.zeros(individual.genotype.orig_size_xyz[0],
+        individual.genotype.orig_size_xyz[1],
+        individual.genotype.orig_size_xyz[2])
+    if data_in_tags:
+        for name, details in individual.genotype.to_phenotype_mapping.items()]:
+            if details["tag"] != "<Data>":
+                continue
+            for z in range(individual.genotype.orig_size_xyz[2]):
+                voxelyze_file.write("<Layer><![CDATA[")
+                for y in range(individual.genotype.orig_size_xyz[1]):
+                    for x in range(individual.genotype.orig_size_xyz[0]):
+                        data_shape(x, y, z) = details["output_type"](details["state"][x, y, z])
+    else:
+        data_shape = np.add(data_shape, sim.fixed_shape)
+
+    if scenario:
+        data_shape = np.add(data_shape, scenario.shape)
 
     voxelyze_file.write(
         "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n\
@@ -106,10 +131,10 @@ def write_voxelyze_file(sim, env, individual, run_directory, run_name):
         </EquilibriumMode>\n\
         <GA>\n\
         <WriteFitnessFile>1</WriteFitnessFile>\n\
-        <FitnessFileName>" + run_directory + "/fitnessFiles/softbotsOutput--id_%05i.xml" % individual.id +
+        <FitnessFileName>" + run_directory + "/fitnessFiles/softbotsOutput" + fileNameID + ".xml" +
         "</FitnessFileName>\n\
-        <QhullTmpFile>" + run_directory + "/tempFiles/qhullInput--id_%05i.txt" % individual.id + "</QhullTmpFile>\n\
-        <CurvaturesTmpFile>" + run_directory + "/tempFiles/curvatures--id_%05i.txt" % individual.id +
+        <QhullTmpFile>" + run_directory + "/tempFiles/qhullInput" + fileNameID + ".txt" + "</QhullTmpFile>\n\
+        <CurvaturesTmpFile>" + run_directory + "/tempFiles/curvatures" + fileNameID + ".txt" +
         "</CurvaturesTmpFile>\n\
         </GA>\n\
         <MinTempFact>" + str(sim.min_temp_fact) + "</MinTempFact>\n\
@@ -275,22 +300,26 @@ def write_voxelyze_file(sim, env, individual, run_directory, run_name):
         <Y_Voxels>" + str(individual.genotype.orig_size_xyz[1]) + "</Y_Voxels>\n\
         <Z_Voxels>" + str(individual.genotype.orig_size_xyz[2]) + "</Z_Voxels>\n")
 
-    all_tags = [details["tag"] for name, details in individual.genotype.to_phenotype_mapping.items()]
-    if "<Data>" not in all_tags:  # not evolving topology -- fixed presence/absence of voxels
-        voxelyze_file.write("<Data>\n")
-        for z in range(individual.genotype.orig_size_xyz[2]):
-            voxelyze_file.write("<Layer><![CDATA[")
-            for y in range(individual.genotype.orig_size_xyz[1]):
-                for x in range(individual.genotype.orig_size_xyz[0]):
-                    voxelyze_file.write("3")
-            voxelyze_file.write("]]></Layer>\n")
-        voxelyze_file.write("</Data>\n")
 
     # append custom parameters
     string_for_md5 = ""
 
-    for name, details in individual.genotype.to_phenotype_mapping.items():
+    voxelyze_file.write("<Data>\n")
+    for z in range(individual.genotype.orig_size_xyz[2]):
+        voxelyze_file.write("<Layer><![CDATA[")
+        for y in range(individual.genotype.orig_size_xyz[1]):
+            for x in range(individual.genotype.orig_size_xyz[0]):
+                state = str(data_shape[x, y, z])
+                voxelyze_file.write(state)
+                if data_in_tags:
+                    string_for_md5 += state
+        voxelyze_file.write("]]></Layer>\n")
+    voxelyze_file.write("</Data>\n")
 
+
+    for name, details in individual.genotype.to_phenotype_mapping.items():
+        if details["tag"] == "<Data>":
+            continue
         # start tag
         voxelyze_file.write(details["tag"]+"\n")
 
@@ -312,8 +341,7 @@ def write_voxelyze_file(sim, env, individual, run_directory, run_name):
                         #         state = individual.genotype[n].graph.node[name]["state"][x, y, z]
 
                         voxelyze_file.write(str(state))
-                        if details["tag"] != "<Data>":  # TODO more dynamic
-                            voxelyze_file.write(", ")
+                        voxelyze_file.write(", ")
                         string_for_md5 += str(state)
 
                 voxelyze_file.write("]]></Layer>\n")

@@ -162,7 +162,13 @@ def evaluate_all(sim, env, pop, print_log, save_vxa_every, run_directory, run_na
                         if ind.id == this_id:
                             for rank, details in pop.objective_dict.items():
                                 if objective_values_dict[rank] is not None:
-                                    setattr(ind, details["name"], objective_values_dict[rank])
+                                    if not details["node_func"]:
+                                        setattr(ind, details["name"], objective_values_dict[rank])
+                                    else:
+                                        for name, details_phenotype in ind.genotype.to_phenotype_mapping.items():
+                                            if name == details["output_node_name"]:
+                                                state = details_phenotype["state"]
+                                                setattr(ind, details["name"], details["node_func"](state, objective_values_dict[rank]))
                                 else:
                                     # for network in ind.genotype:
                                     #     for name in network.output_node_names:

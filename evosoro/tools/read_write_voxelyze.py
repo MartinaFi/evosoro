@@ -74,7 +74,6 @@ def write_voxelyze_file(sim, env, individual, run_directory, run_name, scenario 
             if details["tag"] != "<Data>":
                 continue
             for z in range(individual.genotype.orig_size_xyz[2]):
-                voxelyze_file.write("<Layer><![CDATA[")
                 for y in range(individual.genotype.orig_size_xyz[1]):
                     for x in range(individual.genotype.orig_size_xyz[0]):
                         data_shape[x, y, z] = details["output_type"](details["state"][x, y, z])
@@ -309,7 +308,7 @@ def write_voxelyze_file(sim, env, individual, run_directory, run_name, scenario 
         voxelyze_file.write("<Layer><![CDATA[")
         for y in range(individual.genotype.orig_size_xyz[1]):
             for x in range(individual.genotype.orig_size_xyz[0]):
-                state = str(data_shape[x, y, z])
+                state = '%d' % data_shape[x, y, z]
                 voxelyze_file.write(state)
                 if data_in_tags:
                     string_for_md5 += state

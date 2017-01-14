@@ -62,22 +62,22 @@ def write_voxelyze_file(sim, env, individual, run_directory, run_name, scenario 
                 setattr(env, env_key, env_func(details["state"]))  # currently only used when evolving frequency
                 # print env_key, env_func(details["state"])
 
-    voxelyze_file = open(run_directory + "/voxelyzeFiles/" + run_name + fileNameID + ".vxa" % individual.id, "w")
+    voxelyze_file = open(run_directory + "/voxelyzeFiles/" + run_name + fileNameID + ".vxa", "w")
 
     all_tags = [details["tag"] for name, details in individual.genotype.to_phenotype_mapping.items()]
     data_in_tags =  "<Data>" in all_tags
-    data_shape = np.zeros(individual.genotype.orig_size_xyz[0],
+    data_shape = np.zeros((individual.genotype.orig_size_xyz[0],
         individual.genotype.orig_size_xyz[1],
-        individual.genotype.orig_size_xyz[2])
+        individual.genotype.orig_size_xyz[2]))
     if data_in_tags:
-        for name, details in individual.genotype.to_phenotype_mapping.items()]:
+        for name, details in individual.genotype.to_phenotype_mapping.items():
             if details["tag"] != "<Data>":
                 continue
             for z in range(individual.genotype.orig_size_xyz[2]):
                 voxelyze_file.write("<Layer><![CDATA[")
                 for y in range(individual.genotype.orig_size_xyz[1]):
                     for x in range(individual.genotype.orig_size_xyz[0]):
-                        data_shape(x, y, z) = details["output_type"](details["state"][x, y, z])
+                        data_shape[x, y, z] = details["output_type"](details["state"][x, y, z])
     else:
         data_shape = np.add(data_shape, sim.fixed_shape)
 

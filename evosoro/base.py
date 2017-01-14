@@ -23,7 +23,7 @@ class Sim(VoxCadParams):
 
     def __init__(self, self_collisions_enabled=True, simulation_time=10, dt_frac=0.7, stop_condition=2,
                  fitness_eval_init_time=2, equilibrium_mode=0, min_temp_fact=0.1, max_temp_fact_change=0.00001,
-                 max_stiffness_change=10000, min_elastic_mod=5e006, max_elastic_mod=5e008, fixed_shape=none, scenarios=none):
+                 max_stiffness_change=10000, min_elastic_mod=5e006, max_elastic_mod=5e008, fixed_shape=None, scenarios=None):
 
         VoxCadParams.__init__(self)
 

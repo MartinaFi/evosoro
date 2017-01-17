@@ -52,7 +52,7 @@ def write_voxelyze_file(sim, env, individual, run_directory, run_name, scenario 
     if scenario == None:
         fileNameID = "--id_%05i" % individual.id
     else:
-        fileNameID = "--id_%05i--scen_%05i" % individual.id, scenario.id
+        fileNameID = "--id_%05i--scen_%05i" % (individual.id, scenario['scen_id'])
     # TODO: work in base.py to remove redundant static text in this function
 
     # update any env variables based on outputs instead of writing outputs in
@@ -81,7 +81,7 @@ def write_voxelyze_file(sim, env, individual, run_directory, run_name, scenario 
         data_shape = np.add(data_shape, sim.fixed_shape)
 
     if scenario:
-        data_shape = np.add(data_shape, scenario.shape)
+        data_shape = np.add(data_shape, scenario['shape']) # TODO the scenario should be bigger than the evolved shape
 
     voxelyze_file.write(
         "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n\

@@ -2,6 +2,9 @@ import time
 import random
 import numpy as np
 import subprocess as sub
+import re
+
+from ga_classification import classificator
 
 from read_write_voxelyze import read_voxlyze_results, write_voxelyze_file
 
@@ -55,39 +58,44 @@ def evaluate_all(sim, env, pop, print_log, save_vxa_every, run_directory, run_na
     start_time = time.time()
     num_evaluated_this_gen = 0
     ids_to_analyze = []
+    re_sel_id_scen = re.compile("softbotsOutput--id_([0-9]+)--scen_([0-9]+).xml")
+    evals_done = {}
 
     for ind in pop:
 
-        # write the phenotype of a SoftBot to a file so that VoxCad can access for sim.
-        ind.md5 = write_voxelyze_file(sim, env, ind, run_directory, run_name)
+        ind.md5 = {};
+        for scenario in sim.scenarios:
 
-        # don't evaluate if invalid
-        if not ind.phenotype.is_valid():
-            for rank, goal in pop.objective_dict.items():
-                if goal["name"] != "age":
-                    setattr(ind, goal["name"], goal["worst_value"])
-            print_log.message("Skipping invalid individual")
+            # write the phenotype of a SoftBot to a file so that VoxCad can access for sim.
+            scen_md5  = write_voxelyze_file(sim, env, ind, run_directory, run_name, scenario)
+            ind.md5[scenario['scen_id']] = scen_md5
+            # don't evaluate if invalid
+            if not ind.phenotype.is_valid():
+                for rank, goal in pop.objective_dict.items():
+                    if goal["name"] != "age":
+                        setattr(ind, goal["name"], goal["worst_value"])
+                print_log.message("Skipping invalid individual")
 
-        # don't evaluate if identical phenotype has already been evaluated
-        elif env.actuation_variance == 0 and ind.md5 in pop.already_evaluated:
-            for rank, goal in pop.objective_dict.items():
-                if goal["tag"] is not None:
-                    setattr(ind, goal["name"], pop.already_evaluated[ind.md5][rank])
-            # print_log.message("Individual already evaluated:  cached fitness is {}".format(ind.fitness))
+            # don't evaluate if identical phenotype has already been evaluated
+            elif env.actuation_variance == 0 and scen_md5 in pop.already_evaluated:
+                for rank, goal in pop.objective_dict.items():
+                    if goal["tag"] is not None:
+                        setattr(ind, goal["name"], pop.already_evaluated[scen_md5][rank])
+                        print_log.message("Individual already evaluated:  cached fitness is {}".format(ind.fitness))
 
-            if pop.gen % save_vxa_every == 0 and save_vxa_every > 0:
-                sub.call("cp " + run_directory + "/voxelyzeFiles/" + run_name + "--id_%05i.vxa" % ind.id +
-                         " " + run_directory + "/Gen_%04i/" % pop.gen + run_name +
-                         "--Gen_%04i--fit_%.08f--id_%05i.vxa" % (pop.gen, ind.fitness, ind.id), shell=True)
+                if pop.gen % save_vxa_every == 0 and save_vxa_every > 0:
+                    sub.call("cp " + run_directory + "/voxelyzeFiles/" + run_name + "--id_%05i--scen_%05i.vxa" % (ind.id, scenario['scen_id']) +
+                             " " + run_directory + "/Gen_%04i/" % pop.gen + run_name +
+                             "--Gen_%04i--fit_%.08f--id_%05i--scen_%05i.vxa" % (pop.gen, ind.fitness, ind.id, scenario['scen_id']), shell=True)
 
-        # otherwise evaluate with voxelyze
-        else:
-            num_evaluated_this_gen += 1
-            pop.total_evaluations += 1
-            ids_to_analyze += [ind.id]
+            # otherwise evaluate with voxelyze
+            else:
+                num_evaluated_this_gen += 1
+                pop.total_evaluations += 1
+                ids_to_analyze += ["--id_%05i--scen_%05i" % (ind.id, scenario['scen_id'])]
 
-            sub.Popen("./voxelyze  -f " + run_directory + "/voxelyzeFiles/" + run_name + "--id_%05i.vxa" % ind.id,
-                      shell=True)
+                sub.Popen("./voxelyze  -f " + run_directory + "/voxelyzeFiles/" + run_name + "--id_%05i--scen_%05i.vxa" % (ind.id, scenario['scen_id']) ,
+                          shell=True)
 
     print_log.message("Launched {0} voxelyze calls, out of {1} individuals".format(num_evaluated_this_gen, len(pop)))
 
@@ -115,14 +123,17 @@ def evaluate_all(sim, env, pop, print_log, save_vxa_every, run_directory, run_na
             non_analyzed_ids = [idx for idx in ids_to_analyze if idx not in already_analyzed_ids]
             print "Rerunning voxelyze for: ", non_analyzed_ids
             for idx in non_analyzed_ids:
-                sub.Popen("./voxelyze  -f " + run_directory + "/voxelyzeFiles/" + run_name + "--id_%05i.vxa" % idx,
+                sub.Popen("./voxelyze  -f " + run_directory + "/voxelyzeFiles/" + run_name + idx + ".vxa",
                           shell=True)
 
         # check to see if all are finished
         all_done = True
-        for ind in pop:
-            if ind.phenotype.is_valid() and ind.fitness == pop.objective_dict[0]["worst_value"]:
+        sbagliati = 0
+        for ind_id, evaluated_list in evals_done.items():
+            if evaluated_list.__len__() < sim.scenarios.__len__():
                 all_done = False
+                sbagliati +=1
+        print "Sbagliati: %d" % sbagliati
 
         # check for any fitness files that are present
         ls_check = sub.check_output(["ls", run_directory + "/fitnessFiles/"])
@@ -132,7 +143,11 @@ def evaluate_all(sim, env, pop, print_log, save_vxa_every, run_directory, run_na
             # ls_check = random.choice(ls_check.split())  # doesn't accomplish anything and undermines reproducibility
             ls_check = ls_check.split()[0]
             if "softbotsOutput--id_" in ls_check:
-                this_id = int(ls_check.split("_")[1].split(".")[0])
+                mtc = re_sel_id_scen.match(ls_check)
+                this_id = "--id_%05i--scen_%05i" % (int(mtc.group(1)), int(mtc.group(2)))
+                ind_id = mtc.group(1)
+                int_id_as_num = int(ind_id)
+                scenario = (item for item in sim.scenarios if item["scen_id"] == int(mtc.group(2))).next() # Looing for the right scenario
 
                 if this_id in already_analyzed_ids:
                     # workaround to avoid any duplicated ids when restarting sims
@@ -159,56 +174,36 @@ def evaluate_all(sim, env, pop, print_log, save_vxa_every, run_directory, run_na
 
                     # assign the values to the corresponding individual
                     for ind in pop:
-                        if ind.id == this_id:
+                        if ind.id == int_id_as_num:
+                            evaluated_values = {}
                             for rank, details in pop.objective_dict.items():
                                 if objective_values_dict[rank] is not None:
                                     if not details["node_func"]:
-                                        setattr(ind, details["name"], objective_values_dict[rank])
+                                        evaluated_values[details["name"]] = objective_values_dict[rank]
                                     else:
                                         for name, details_phenotype in ind.genotype.to_phenotype_mapping.items():
                                             if name == details["output_node_name"]:
                                                 state = details_phenotype["state"]
-                                                setattr(ind, details["name"], details["node_func"](state, objective_values_dict[rank]))
+                                                evaluated_values[details["name"]] = details["node_func"](state, objective_values_dict[rank])
                                 else:
-                                    # for network in ind.genotype:
-                                    #     for name in network.output_node_names:
-                                    #         if name == details["output_node_name"]:
-                                    #             print "here!"
-                                    #             # apply the specified function to the specified output node
-                                    #             state = network.graph.node[name]["state"]
-                                    #             setattr(ind, details["name"], details["node_func"](state))
                                     for name, details_phenotype in ind.genotype.to_phenotype_mapping.items():
                                         if name == details["output_node_name"]:
                                             state = details_phenotype["state"]
-                                            setattr(ind, details["name"], details["node_func"](state))
+                                            evaluated_values[details["name"]] = details["node_func"](state)
 
-                            pop.already_evaluated[ind.md5] = [getattr(ind, details["name"])
+                                if pop.objective_dict[rank]['mode'] == "classification":
+                                    evaluated_values[details["name"]] = {"value": evaluated_values[details["name"]], "target": scenario["target"]}
+
+                            pop.already_evaluated[ind.md5[scenario['scen_id']]] = [getattr(ind, details["name"])
                                                               for rank, details in
                                                               pop.objective_dict.items()]
                             pop.all_evaluated_individuals_ids += [this_id]
 
-                            # update the run statistics and file management
-                            if ind.fitness > pop.best_fit_so_far:
-                                pop.best_fit_so_far = ind.fitness
-                                sub.call("cp " + run_directory + "/voxelyzeFiles/" + run_name + "--id_%05i.vxa" %
-                                         ind.id + " " + run_directory + "/bestSoFar/fitOnly/" + run_name +
-                                         "--Gen_%04i--fit_%.08f--id_%05i.vxa" %
-                                         (pop.gen, ind.fitness, ind.id), shell=True)
 
-                            if save_lineages:
-                                sub.call("cp " + run_directory + "/voxelyzeFiles/" + run_name + "--id_%05i.vxa" %
-                                         ind.id + " " + run_directory + "/lineages/" +
-                                         run_name + "--Gen_%04i--fit_%.08f--id_%05i.vxa" %
-                                         (pop.gen, ind.fitness, ind.id), shell=True)
-
-                            if pop.gen % save_vxa_every == 0 and save_vxa_every > 0:
-                                sub.call("mv " + run_directory + "/voxelyzeFiles/" + run_name + "--id_%05i.vxa" %
-                                         ind.id + " " + run_directory + "/Gen_%04i/" % pop.gen +
-                                         run_name + "--Gen_%04i--fit_%.08f--id_%05i.vxa" %
-                                         (pop.gen, ind.fitness, ind.id), shell=True)
+                            if evals_done.get(ind_id, None) is None:
+                                evals_done[ind_id] = [evaluated_values]
                             else:
-                                sub.call("rm " + run_directory + "/voxelyzeFiles/" + run_name + "--id_%05i.vxa" %
-                                         ind.id, shell=True)
+                                evals_done[ind_id] += [evaluated_values]
 
                             break
 
@@ -222,6 +217,58 @@ def evaluate_all(sim, env, pop, print_log, save_vxa_every, run_directory, run_na
         print_log.message("WARNING: Couldn't get a fitness value in time for some individuals, "
                           "probably there's something wrong with them (e.g. sim diverged). "
                           "The min fitness is being assigned to those")
+
+    for ind_id, evaluated_list in evals_done.items():
+        calculated_values = {}
+        class_values = []
+        num = evaluated_list.__len__()
+        class_obj = (item for item in pop.objective_dict.items() if item["mode"] == "classification").next()
+        ind =  (item for item in pop if item["id"] == ind_id).next()
+
+        for evaluated in evaluated_list:
+            for name, value in evaluated:
+                if name == class_obj.name:
+                    class_values += [{
+                        value: evaluated['value'],
+                        target: evaluated['target']
+                    }]
+                else:
+                    calculated_values[name] = calculated_values[name] + 1/num * value
+
+        calculated_values[class_obj.name] = classificator(class_values);
+        for name, value in calculated_values:
+            setattr(ind, name, value)
+        # update the run statistics and file management
+        if ind.fitness > pop.best_fit_so_far:
+            pop.best_fit_so_far = ind.fitness
+
+            for scenario in sim.scenarios:
+                my_id = "--id_%05i--scen_%05i" % (ind.id, scenario['scen_id'])
+                sub.call("cp " + run_directory + "/voxelyzeFiles/" + run_name + my_id +".vxa" +
+                        " " + run_directory + "/bestSoFar/fitOnly/" + run_name +
+                         "--Gen_%04i--fit_%.08f" % (pop.gen, ind.fitness)
+                         + my_id + ".vxa", shell=True)
+
+        if save_lineages:
+            for scenario in sim.scenarios:
+                my_id = "--id_%05i--scen_%05i" % (ind.id, scenario['scen_id'])
+                sub.call("cp " + run_directory + "/voxelyzeFiles/" + run_name + my_id +".vxa" +
+                         " " + run_directory + "/lineages/" +
+                         run_name + "--Gen_%04i--fit_%.08f" % (pop.gen, ind.fitness) +
+                         my_id + " .vxa", shell=True)
+
+        if pop.gen % save_vxa_every == 0 and save_vxa_every > 0:
+            for scenario in sim.scenarios:
+                my_id = "--id_%05i--scen_%05i" % (ind.id, scenario['scen_id'])
+                sub.call("mv " + run_directory + "/voxelyzeFiles/" + run_name + my_id +".vxa" +
+                         " " + run_directory + "/Gen_%04i/" % pop.gen +
+                         run_name + "--Gen_%04i--fit_%.08f" % (pop.gen, ind.fitness) +
+                         my_id + ".vxa", shell=True)
+        else:
+            for scenario in sim.scenarios:
+                my_id = "--id_%05i--scen_%05i" % (ind.id, scenario['scen_id'])
+                sub.call("rm " + run_directory + "/voxelyzeFiles/" + run_name + my_id +
+                ".vxa", shell=True)
 
     print_log.message("\nAll Voxelyze evals finished in {} seconds".format(time.time() - start_time))
     print_log.message("num_evaluated_this_gen: {0}".format(num_evaluated_this_gen))

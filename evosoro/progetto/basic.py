@@ -44,6 +44,7 @@ from evosoro.softbot import Genotype, Phenotype, Population
 from evosoro.tools.algorithms import ParetoOptimization
 from evosoro.tools.utils import count_occurrences, make_material_tree
 from evosoro.tools.checkpointing import continue_from_checkpoint
+from evosoro.tools.evaluation_classification import evaluate_all
 
 def calc_class_out(state, weight):
     print "Ciao!"
@@ -131,8 +132,55 @@ class MyPhenotype(Phenotype):
         return True
 
 
+scenarios = [
+    {
+        'scen_id': 1,
+        'target': 1,
+        'shape' : [[[ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.]],
+
+       [[ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.]],
+
+       [[ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.]],
+
+       [[ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.]],
+
+       [[ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.]],
+
+       [[ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.],
+        [ 0.,  0.,  0.,  0.,  0.,  0.]]]
+    }
+];
 # Setting up the simulation object
-my_sim = Sim(dt_frac=DT_FRAC, simulation_time=SIM_TIME, fitness_eval_init_time=INIT_TIME)
+my_sim = Sim(dt_frac=DT_FRAC, simulation_time=SIM_TIME, fitness_eval_init_time=INIT_TIME, scenarios= scenarios)
 
 # Setting up the environment object
 my_env = Env(sticky_floor=0, time_between_traces=0)
@@ -145,7 +193,7 @@ my_objective_dict = ObjectiveDict()
 # in a fitness .xml file, with a tag named "NormFinalDist"
 my_objective_dict.add_objective(name="fitness", maximize=True, tag="<NormFinalDist>")
 
-my_objective_dict.add_objective(name="fitclass", maximize=True, tag="<Pressure>", node_func=calc_class_out,output_node_name="material")
+# my_objective_dict.add_objective(name="fitclass", maximize=True, tag="<Pressure>", node_func=calc_class_out,output_node_name="material")
 
 # Add an objective to minimize the age of solutions: promotes diversity
 my_objective_dict.add_objective(name="age", maximize=False, tag=None, node_func=np.count_nonzero, output_node_name="material")
@@ -171,7 +219,7 @@ my_objective_dict.add_objective(name="energy", maximize=False, tag=None,
 my_pop = Population(my_objective_dict, MyGenotype, MyPhenotype, pop_size=POPSIZE)
 
 # Setting up our optimization
-my_optimization = ParetoOptimization(my_sim, my_env, my_pop)
+my_optimization = ParetoOptimization(sim=my_sim, env=my_env, pop=my_pop, evaluation_func=evaluate_all)
 
 # And, finally, our main
 if __name__ == "__main__":

@@ -125,6 +125,8 @@ class ObjectiveDict(dict):
             network.
         output_node_name : str
             The output node which node_func operates on.
+        mode : str
+            The way in which the objective should be calculated, standard or classification
 
         """
         curr_rank = self.max_rank
